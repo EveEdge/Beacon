@@ -153,12 +153,18 @@ body {
 							context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Testing speed ' + formatSpeed(speed) + ' ...');
 						}
 					});
+					context.xhr.addEventListener("error", function(e) {
+						window.clearTimeout(context.timer);
+						result[pos] = -1;
+						context.resultDom.html('<i class="fa fa-times" aria-hidden="true"></i> CDN Request failed.')
+						startNext();
+					});
 					context.xhr.open("GET", endpoint);
 					context.xhr.send();
 					context.timer = window.setTimeout(function() {
 						context.xhr.abort();
 						result[pos] = -1;
-						reportError('<i class="fa fa-times" aria-hidden="true"></i> Request timed out.')
+						context.resultDom.html('<i class="fa fa-times" aria-hidden="true"></i> Request timed out.')
 						startNext();
 					}, 10000);
 				};

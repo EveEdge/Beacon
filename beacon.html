@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta charset="utf-8" />
+		<title>EveEdge Speedtest</title>
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@4.4.1/dist/cosmo/bootstrap.min.css" />
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" />
+		<style>
+body {
+	padding-top: 64px;
+}
+
+.btn-animated {
+	transition: all 1s;
+	-webkit-transition: all 1s;
+	-moz-transition: all 1s;
+}
+		</style>
+	</head>
+	<body>
+		<nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top" id="navbar">
+			<div class="container">
+				<a class="navbar-brand" href="#">EveEdge SpeedTest</a>
+				<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-collapse" aria-controls="navbarColor01" aria-expanded="false" aria-label="Toggle navigation">
+					<span class="navbar-toggler-icon"></span>
+				</button>
+				<div class="collapse navbar-collapse" id="navbar-collapse">
+					<ul class="navbar-nav mr-auto">
+					</ul>
+					<ul class="nav nav-pills navbar-nav">
+						<li class="nav-item dropdown">
+							<a href="#" class="nav-link dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Language: EN <span class="caret"></span></a>
+							<div class="dropdown-menu" role="menu">
+								<a class="dropdown-item" href="#">English</a>
+								<a class="dropdown-item" href="zh-CN.html">简体中文</a>
+							</div>
+						</li>
+					</ul>
+				</div>
+			</div>
+		</nav>
+		<div class="container" id="alertbox"></div>
+		<div class="container jumbotron">
+			<p>Please click the button below to start speedtest.</p>
+			<button class="btn btn-primary btn-animated" id="start">Start SpeedTest</button>
+		</div>
+		<div class="container" id="result">
+			<table id="result-display" class="table table-striped table-hover">
+			</table>
+		</div>
+	</body>
+	<script language="javascript" src="https://cdn.jsdelivr.net/npm/jquery@3.4.1/dist/jquery.min.js"></script>
+	<script language="javascript" src="https://cdn.jsdelivr.net/npm/bootstrap@4.4.1/dist/js/bootstrap.min.js"></script>
+	<script language="javascript">
+		jQuery.support.cors = true;
+		(function($) {
+			const navigatorApiBase = "https://navigator.eve.moe/client/v1";
+			// const navigatorApiBase = "https://navigator.eve.moe/err";
+			const formatSpeed = function(speed) {
+				const units = ["B/s", "KiB/s", "MiB/s", "GiB/s", "TiB/s", "PiB/s", "EiB/s"];
+				var u = 0;
+				while (speed >= 1000 && u < 6) {
+					speed /= 1024;
+					u += 1;
+				}
+				if (speed >= 999.5) {
+					return speed.toFixed(0) + " " + units[u];
+				}
+				// Already smaller than 1000
+				if (speed >= 99.5) {
+					return speed.toFixed(0) + " " + units[u];
+				}
+				// Already smaller than 100
+				if (speed >= 9.95) {
+					return speed.toFixed(1) + " " + units[u];
+				}
+				// Already smaller than 10
+				if (speed >= 0.995) {
+					return speed.toFixed(2) + " " + units[u];
+				}
+				return speed.toFixed(3) + " " + units[u];
+			}
+			const speedTest = function() {
+				const scheme = "https://";
+				const path = "/beacon.bin";
+				var started = false;
+				var pos = 0;
+				var nodes;
+				var suffix;
+				var context = {};
+				var result;
+				this.start = function(n, s) {
+					if (started) return false;
+					nodes = n;
+					suffix = s;
+					started = true;
+					pos = 0;
+					result = new Array(nodes.length);
+					doTest();
+				}
+				const startNext = function() {
+					pos ++;
+					if (pos >= nodes.length) {
+						$('#msgbox').remove();
+						$('#alertbox').html('<div class="alert alert-dismissible alert-success" id="msgbox" style="display: none;"><button type="button" class="close" data-dismiss="alert">&times;</button><span id="msg"></span></div>')
+						$('#msg').html('<i class="fa fa-check" aria-hidden="true"></i> Speed test finished :)');
+						$('#msgbox').animate({
+							"padding-top": "toggle",
+							"padding-bottom": "toggle",
+							height: "toggle"
+						}, 500)
+						page.resetButton();
+						return;
+					}
+					context = {};
+					doTest();
+				}
+				const doTest = function() {
+					context.resultDom = $("#" + nodes[pos] + "-result");
+					context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Connecting to CDN ...');
+					var endpoint = scheme + nodes[pos] + suffix + path;
+					context.xhr = new XMLHttpRequest();
+					context.xhr.addEventListener("readystatechange", function(e) {
+						if (e.target.readyState == 2) { // HEADERS_RECEIVED
+							window.clearTimeout(context.timer);
+							context.timer = window.setTimeout(function() {
+								context.xhr.abort();
+							}, 10000);
+							// We add eventListener here, to avoid this to be triggered by timed out.
+							context.xhr.addEventListener("loadend", function(e) {
+								const delta = performance.now() - context.startTime;
+								const speed = e.loaded / delta * 1000;
+								result[pos] = speed;
+								context.resultDom.html('<i class="fa fa-check" aria-hidden="true"></i> Testing finished, average speed: ' + formatSpeed(speed));
+								startNext();
+							});
+							context.startTime = performance.now();
+							context.lastMeasure = performance.now();
+							context.lastLoaded = 0;
+							context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Testing speed ...');
+						}
+					});
+					context.xhr.addEventListener("progress", function(e) {
+						const now = performance.now();
+						if (now - context.lastMeasure >= 500) {
+							const downloaded = e.loaded - context.lastLoaded;
+							const speed = downloaded / (now - context.lastMeasure) * 1000;
+							context.lastLoaded = e.loaded;
+							context.lastMeasure = now;
+							context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Testing speed ' + formatSpeed(speed) + ' ...');
+						}
+					});
+					context.xhr.open("GET", endpoint);
+					context.xhr.send();
+					context.timer = window.setTimeout(function() {
+						context.xhr.abort();
+						result[pos] = -1;
+						reportError('<i class="fa fa-times" aria-hidden="true"></i> Request timed out.')
+						startNext();
+					}, 10000);
+				};
+			};
+			const apiCall = function(path, args) {
+				path = navigatorApiBase + path;
+				if (args !== null && typeof args != "undefined") {
+					return $.ajax({
+						type: "POST",
+						url: path,
+						data: args,
+						dataType: "json",
+						crossDomain: true,
+					});
+				} else {
+					return $.ajax({
+						type: "GET",
+						url: path,
+						dataType: "json",
+						crossDomain: true
+					});
+				}
+			}
+			var page = new (function() {
+				this.printApiError = function(msg) {
+					$('#msgbox').remove()
+					$('#alertbox').html('<div class="alert alert-dismissible alert-danger" id="msgbox" style="display: none;"><button type="button" class="close" data-dismiss="alert">&times;</button><span id="errormsg"></span></div>')
+					$('#errormsg').text("API Error: " + msg)
+					$('#msgbox').animate({
+						"padding-top": "toggle",
+						"padding-bottom": "toggle",
+						height: "toggle"
+					}, 500)
+				}
+				this.clearAllError = function() {
+					$('#msgbox').remove()
+				}
+				this.resetButton = function() {
+					$('#start').text('Start SpeedTest').removeAttr('disabled')
+				}
+			})();
+			$('#start').click(function() {
+				var $this = $(this);
+				page.clearAllError();
+				$this.attr('disabled', 'disabled');
+				$this.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Loading CDN nodes ...');
+				$('#result-display').empty().append('<thead><tr><th style="width: 33.33333333%">Node Name</th><th>Result</th></tr></thead>')
+				apiCall("/getNodes").done(function(data) {
+					if (!Array.isArray(data.nodes)) {
+						page.printApiError("Endpoint returns expected data: " + data);
+						page.resetButton();
+						return;
+					}
+					if (typeof data.suffix != "string") {
+						page.printApiError("Endpoint returns expected data: " + data);
+						page.resetButton();
+						return;
+					}
+					var nodes = data.nodes;
+					var suffix = data.suffix;
+					$('#result-display').append('<tbody id="result-body"></tbody>');
+					for (var i = 0, body = $('#result-body'); i < nodes.length; ++ i) {
+						body.append('<tr><td id="' + nodes[i] + '-domain">' + nodes[i] + suffix + '</td><td id="' + nodes[i] + '-result">Test pending ...</td></tr>')
+					}
+					$this.html('<i class="fa fa-spinner fa-spin"></i> Starting speed tests ...');
+					new speedTest().start(nodes, suffix);
+				}).fail(function(xhr, s, e) {
+					page.printApiError(xhr.responseText ? xhr.responseText : e.message);
+					page.resetButton();
+					return;
+				})
+			})
+		})(jQuery);
+	</script>
+</html>

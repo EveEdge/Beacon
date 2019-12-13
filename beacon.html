@@ -121,7 +121,7 @@ body {
 				const doTest = function() {
 					context.resultDom = $("#" + nodes[pos] + "-result");
 					context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Connecting to CDN ...');
-					var endpoint = scheme + nodes[pos] + suffix + path;
+					var endpoint = scheme + nodes[pos] + suffix + path + "?" + new Date().getTime();
 					context.xhr = new XMLHttpRequest();
 					context.xhr.addEventListener("readystatechange", function(e) {
 						if (e.target.readyState == 2) { // HEADERS_RECEIVED

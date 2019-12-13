@@ -134,6 +134,7 @@ body {
 								const delta = performance.now() - context.startTime;
 								const speed = e.loaded / delta * 1000;
 								result[pos] = speed;
+								window.clearTimeout(context.timer);
 								context.resultDom.html('<i class="fa fa-check" aria-hidden="true"></i> Testing finished, average speed: ' + formatSpeed(speed));
 								startNext();
 							});

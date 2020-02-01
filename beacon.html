@@ -57,8 +57,29 @@ body {
 	<script language="javascript">
 		jQuery.support.cors = true;
 		(function($) {
-			const navigatorApiBase = "https://navigator.eve.moe/client/v1";
+			const navigatorApiBase = "https://navigator.eve.moe/beacon/v1";
 			// const navigatorApiBase = "https://navigator.eve.moe/err";
+			const apiCall = function(path, args) {
+				path = navigatorApiBase + path;
+				if (args !== null && typeof args != "undefined") {
+					var data = JSON.stringify(args)
+					return $.ajax({
+						type: "POST",
+						url: path,
+						data: data,
+						dataType: "json",
+						contentType: "application/json",
+						crossDomain: true,
+					});
+				} else {
+					return $.ajax({
+						type: "GET",
+						url: path,
+						dataType: "json",
+						crossDomain: true
+					});
+				}
+			}
 			const formatSpeed = function(speed) {
 				const units = ["B/s", "KiB/s", "MiB/s", "GiB/s", "TiB/s", "PiB/s", "EiB/s"];
 				var u = 0;
@@ -104,15 +125,26 @@ body {
 				const startNext = function() {
 					pos ++;
 					if (pos >= nodes.length) {
-						$('#msgbox').remove();
-						$('#alertbox').html('<div class="alert alert-dismissible alert-success" id="msgbox" style="display: none;"><button type="button" class="close" data-dismiss="alert">&times;</button><span id="msg"></span></div>')
-						$('#msg').html('<i class="fa fa-check" aria-hidden="true"></i> Speed test finished :)');
-						$('#msgbox').animate({
-							"padding-top": "toggle",
-							"padding-bottom": "toggle",
-							height: "toggle"
-						}, 500)
-						page.resetButton();
+						$('#start').html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Sending results ...');
+						var postDict = {};
+						for (var i = 0; i < nodes.length; ++ i) {
+							postDict[nodes[i]] = result[i];
+						}
+						apiCall('/submit', postDict).done(function(data) {
+							$('#msgbox').remove();
+							$('#alertbox').html('<div class="alert alert-dismissible alert-success" id="msgbox" style="display: none;"><button type="button" class="close" data-dismiss="alert">&times;</button><span id="msg"></span></div>')
+							$('#msg').html('<i class="fa fa-check" aria-hidden="true"></i> Speed test finished :)');
+							$('#msgbox').animate({
+								"padding-top": "toggle",
+								"padding-bottom": "toggle",
+								height: "toggle"
+							}, 500)
+							page.resetButton();
+						}).fail(function(xhr, s, e) {
+							page.printApiError(xhr.responseText ? xhr.responseText : e.message);
+							page.resetButton();
+							return;
+						})
 						return;
 					}
 					context = {};
@@ -120,7 +152,8 @@ body {
 				}
 				const doTest = function() {
 					context.resultDom = $("#" + nodes[pos] + "-result");
-					context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Connecting to CDN ...');
+					context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> <span id="speed-display">Connecting to CDN ...</span>');
+					context.speedDom = $('#speed-display');
 					var endpoint = scheme + nodes[pos] + suffix + path + "?" + new Date().getTime();
 					context.xhr = new XMLHttpRequest();
 					context.xhr.addEventListener("readystatechange", function(e) {
@@ -141,7 +174,7 @@ body {
 							context.startTime = performance.now();
 							context.lastMeasure = performance.now();
 							context.lastLoaded = 0;
-							context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Testing speed ...');
+							context.speedDom.html('Testing speed ...');
 						}
 					});
 					context.xhr.addEventListener("progress", function(e) {
@@ -151,7 +184,7 @@ body {
 							const speed = downloaded / (now - context.lastMeasure) * 1000;
 							context.lastLoaded = e.loaded;
 							context.lastMeasure = now;
-							context.resultDom.html('<i class="fa fa-spinner fa-spin" aria-hidden="true"></i> Testing speed ' + formatSpeed(speed) + ' ...');
+							context.speedDom.html('Testing speed ' + formatSpeed(speed) + ' ...');
 						}
 					});
 					context.xhr.addEventListener("error", function(e) {
@@ -170,25 +203,6 @@ body {
 					}, 10000);
 				};
 			};
-			const apiCall = function(path, args) {
-				path = navigatorApiBase + path;
-				if (args !== null && typeof args != "undefined") {
-					return $.ajax({
-						type: "POST",
-						url: path,
-						data: args,
-						dataType: "json",
-						crossDomain: true,
-					});
-				} else {
-					return $.ajax({
-						type: "GET",
-						url: path,
-						dataType: "json",
-						crossDomain: true
-					});
-				}
-			}
 			var page = new (function() {
 				this.printApiError = function(msg) {
 					$('#msgbox').remove()
